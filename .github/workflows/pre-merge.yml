@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: MIT
+# Pre-merge: the formula in this change installs, audits and tests, equals the rendering of the release's
+# identity record, and the archive it names is verified by the release's own trusted installer
+# (ci/verify-formula.sh). The published tap is checked after merge, in post-merge. Public repository, so
+# this runs on GitHub-hosted runners with the read-only job token.
+name: pre-merge
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  formula:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_ANALYTICS: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false}
+      - name: Homebrew on PATH (Linux)
+        if: runner.os == 'Linux'
+        run: echo /home/linuxbrew/.linuxbrew/bin >> "$GITHUB_PATH"
+      - name: Install from this tap
+        run: |
+          brew tap-new --no-git local/dev-platform
+          cp Formula/dev-platform.rb "$(brew --repository local/dev-platform)/Formula/"
+          brew install --formula local/dev-platform/dev-platform
+      - name: Audit and test
+        run: |
+          brew audit --strict --formula local/dev-platform/dev-platform
+          brew test local/dev-platform/dev-platform
+          dev-platform --version
+      - name: The formula is the release's, and the release verifies
+        env: {GH_TOKEN: "${{ github.token }}"}
+        run: bash ci/verify-formula.sh local/dev-platform/dev-platform
