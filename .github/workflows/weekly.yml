@@ -1,0 +1,14 @@
+# Weekly: install the published tap once a week, as a user would (post-merge's job), so a drift in Homebrew, the
+# runner images or dev-platform's own release assets shows up within a week. It records nothing; a red run is the
+# signal. Public repository, so every job runs on a GitHub-hosted runner.
+name: weekly
+on:
+  schedule:
+    # Saturday 22:00 UTC.
+    - cron: "0 22 * * 6"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  as-a-user:
+    uses: ./.github/workflows/post-merge.yml
