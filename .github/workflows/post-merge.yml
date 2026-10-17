@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: MIT
+# Post-merge: the commands the README gives, against the published tap and release: install, then
+# `dev-platform setup` in a consumer pinned to a published release (the platform repository's fixture), with
+# everything job-local. It does not repeat the formula checks that pre-merge already ran on this change.
+# Public repository, so this runs on GitHub-hosted runners with the read-only job token.
+name: post-merge
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  as-a-user:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Homebrew on PATH (Linux)
+        if: runner.os == 'Linux'
+        run: echo /home/linuxbrew/.linuxbrew/bin >> "$GITHUB_PATH"
+      - run: |
+          brew install syncom-systems/dev-platform/dev-platform
+          dev-platform --version
+          gh --version
+      - name: A consumer pinned to a published release
+        run: |
+          git init -q "$RUNNER_TEMP/dp"
+          git -C "$RUNNER_TEMP/dp" fetch -q --depth 1 https://github.com/syncom-systems/dev-platform main
+          git -C "$RUNNER_TEMP/dp" checkout -q FETCH_HEAD
+      - name: dev-platform setup (job-local), then the pinned release runs
+        env: {GH_TOKEN: "${{ github.token }}"}
+        run: |
+          p="$RUNNER_TEMP/dp/fixtures-real/setup-0.8.2"
+          dev-platform setup --project "$p" --allow-unaccepted --print-env > "$RUNNER_TEMP/dp.env"
+          unset GH_TOKEN
+          . "$RUNNER_TEMP/dp.env"
+          dev-platform doctor --project "$p" | tee "$RUNNER_TEMP/doctor.txt"
+          grep -q "platform resolved: mode=pinned version=0.8.2" "$RUNNER_TEMP/doctor.txt"
